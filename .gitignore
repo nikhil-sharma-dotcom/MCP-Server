@@ -1,0 +1,19 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# Images generated at runtime
+*.png
+
+# Local environment
+.env
+
+# Docker
+docker-compose.yml
+
+# OS
+.DS_Store

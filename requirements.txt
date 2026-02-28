@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pandas
+plotly
+jinja2
+python-dotenv
+groq
+fastmcp
+matplotlib
+python-jose[cryptography]
+fastmcp
+httpx
+reportlab
+streamlit
