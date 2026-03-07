@@ -7,7 +7,20 @@ from dotenv import load_dotenv
 import uuid
 from datetime import datetime, UTC
 import time
+import logging
+from logging.handlers import RotatingFileHandler
 
+
+logger=logging.getLogger("audit")
+logger.setLevel(logging.INFO)
+
+handler= RotatingFileHandler(
+    "audit_trace.log",
+    maxBytes=5_000_000,
+    backupCount=5
+)
+
+logger.addHandler(handler)
 # ==============================
 # RATE LIMITER (ASYNC SAFE)
 # ==============================
@@ -84,8 +97,7 @@ def log_tool_call(flow_id, tool_name, args):
         "args": args
     }
 
-    with open("audit_trace.log", "a") as f:
-        f.write(json.dumps(log_entry) + "\n")
+    logger.info(json.dumps(log_entry))
 
 
 # ==============================
@@ -233,8 +245,9 @@ async def run_audit():
                 enrichment = await safe_call_tool(
                     mcp_session,
                     "enrich_transaction_context",
-                    {"vendor_name": item["vendor"]}
-                )
+                    {
+                        "payload":{"vendor_name": item["vendor"]}
+                })
 
                 log_tool_call(
                     flow_id,
@@ -313,10 +326,12 @@ async def run_audit():
         report_data = await safe_call_tool(
             mcp_session,
             "generate_audit_markdown_report",
-            {"findings_json": json.dumps(enriched_findings),
-             "flow_id":flow_id,
-             "user_id":user_id,
-             "role":user_role}
+            { 
+                "payload": {
+                    "findings": enriched_findings,
+                    "flow_id":flow_id,
+                    "user_id":user_id,
+                    "role":user_role}}
         )
 
         log_tool_call(flow_id,
@@ -327,6 +342,19 @@ async def run_audit():
         print(report_data)
         print(final_response.choices[0].message.content)
 
+        await asyncio.sleep(1)
+
+
+async def main_loop():
+    while True:
+        try:
+            await run_audit()
+        except Exception as e:
+            print("Audit run failed:", e)
+
+        # wait before next audit cycle
+        await asyncio.sleep(300)   # 5 minutes
+
 
 if __name__ == "__main__":
-    asyncio.run(run_audit())
+    asyncio.run(main_loop())

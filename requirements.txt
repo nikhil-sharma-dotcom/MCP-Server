@@ -12,3 +12,5 @@ fastmcp
 httpx
 reportlab
 streamlit
+slowapi
+pydantic>=2.0

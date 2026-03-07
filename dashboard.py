@@ -9,44 +9,107 @@ from fastapi.templating import Jinja2Templates
 from fastapi import Request
 import pandas as pd
 import plotly.express as px
-import json
+
+import os
+from jose.exceptions import JWTError
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
+
+
 app = FastAPI()
+
 templates = Jinja2Templates(directory="templates")
-@app.get("/audit-history")
-def get_audit_history():
-    conn = sqlite3.connect("audit.db")
+if os.getenv("ENVIRONMENT")== "production":
+    from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware    
+    app.add_middleware(HTTPSRedirectMiddleware)
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+def get_client_ip(request):
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0]
+    return request.client.host
+
+
+limiter = Limiter(key_func=get_remote_address,
+                  default_limits=["60/minute"])
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, lambda r, e: JSONResponse(
+    status_code=429,
+    content={"error": "Rate limit exceeded"}
+))
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+DB_PATH = os.getenv("DB_PATH", "audit.db")
+
+def get_connection():
+    return sqlite3.connect(DB_PATH, check_same_thread=False)
+def fetch_audit_history():
+    conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM audit_history ORDER BY timestamp DESC")
-    rows = cursor.fetchall()
+    cursor.execute("""SELECT  flow_id, user_id, role,timestamp,
+                   total_findings, high_risk, medium_risk, low_risk, total_exposure
+                   FROM audit_history ORDER BY timestamp DESC""")
+    columns = [c[0] for c in cursor.description]
+    rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
     conn.close()
     return rows
 def get_audit_data():
-    conn = sqlite3.connect("audit.db")
+    conn = get_connection()
     df = pd.read_sql_query("SELECT * FROM audit_history", conn)
     conn.close()
     return df
 
-SECRET_KEY = "your_secret"
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY not set")
 ALGORITHM = "HS256"
 
-def create_token(username):
+def create_token(username: str, role: str):
     expire = datetime.now(UTC) + timedelta(hours=1)
-    return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode({"sub": username,"role": role, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
 
-
+def verify_token(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+    
 security = HTTPBearer()
 
 @app.get("/secure-history")
-def secure_history(token=Depends(security)):
-    try:
-        jwt.decode(token.credentials, SECRET_KEY, algorithms=[ALGORITHM])
-    except:
-        raise HTTPException(status_code=403)
-    return get_audit_history()
+@limiter.limit("20/minute")
+def secure_history(request: Request,token=Depends(security)):
+
+    payload= verify_token(token.credentials)
+    role= payload["role"]
+    if role not in ["partner", "admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient role")
+    return fetch_audit_history()
+
 
 
 @app.get("/", response_class=HTMLResponse)
-def dashboard(request: Request):
+def dashboard(request: Request, token=Depends(security)):
+    verify_token(token.credentials)
     df = get_audit_data()
 
     if df.empty:

@@ -17,3 +17,9 @@ docker-compose.yml
 
 # OS
 .DS_Store
+# Database
+audit.db
+*.db
+*.sqlite
+reports/
+data/
