@@ -32,5 +32,22 @@ jobs:
           touch data/audit.db-shm
           touch data/audit.db-wal
           
+
+      - name: Run Integration Tests
+        run: |
+          # Ensure the test DB is ready
+          mkdir -p data
+          touch data/test_audit.db
+          pytest tests/test_integration.py
+
+      # Add this to your jobs in ci.yml
+  build-docker:
+    needs: test-suite # Only runs if tests pass
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker Image
+        run: |
+          docker build -t mcp-server:latest .
       - name: Run Tests
         run: pytest

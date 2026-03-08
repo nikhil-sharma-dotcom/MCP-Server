@@ -10,3 +10,8 @@ dependencies = [
     "mcp[cli]>=1.26.0",
     "pandas>=3.0.1",
 ]
+
+[tool.pytest.ini_options]
+norecursedirs = ["venv"]
+# Explicitly ignore the load test during standard unit test runs
+addopts = "--ignore=tests/load_test.py"
