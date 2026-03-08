@@ -666,6 +666,3 @@ MIT License - See [LICENSE](LICENSE) for details.
 **Nikhil Sharma**  
 GitHub: [@nikhil-sharma-dotcom](https://github.com/nikhil-sharma-dotcom)
 
----
-
-> **Note**: This project is actively being improved. Check the [roadmap](#limitations--roadmap) for upcoming enhancements. For production use, please address the known limitations first.
