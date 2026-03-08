@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from db import get_read_only_connection
 from utils import raise_tool_error
 from models.schemas import HighValueRequest
@@ -59,7 +60,10 @@ async def validate_transaction_policies() -> str:
                     "amount": total
                 })
 
-        return json.dumps(findings)
+        return json.dumps({
+            "findings": findings,
+            "count": len(findings),
+            "status": "success"})
 
     except Exception as e:
         raise_tool_error("validate_transaction_policies", str(e))
@@ -90,7 +94,7 @@ async def flag_high_value_transactions(payload: HighValueRequest) -> str:
             for r in rows
         ]
 
-        return json.dumps(results)
+        return json.dumps({"findings":results,"count":len(results)})
 
     except Exception as e:
         raise_tool_error("flag_high_value_transactions", str(e))

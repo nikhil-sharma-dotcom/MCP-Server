@@ -1,0 +1,36 @@
+name: MCP Server CI
+
+on: 
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-mock
+      
+      - name: Setup Workspace
+        run: |
+          # Create folders and set permissions to avoid [Errno 13]
+          mkdir -p reports data
+          chmod 775 reports data
+          
+          # Initialize the main DB and WAL files to prevent OperationalErrors
+          touch data/audit.db
+          touch data/audit.db-shm
+          touch data/audit.db-wal
+          
+      - name: Run Tests
+        run: pytest

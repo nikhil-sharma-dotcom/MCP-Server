@@ -17,6 +17,7 @@ from datetime import datetime, UTC
 from db import get_write_connection
 from utils import raise_tool_error
 from models.schemas import AuditReportRequest
+import sqlite3
 
 matplotlib.use("Agg")
 def _generate_report_sync(payload):
